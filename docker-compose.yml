@@ -1,0 +1,136 @@
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.4
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.4
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  mysql:
+    image: mysql:8.3.0
+    container_name: mysql-expense
+    restart: always
+    environment:
+      MYSQL_USER: test
+      MYSQL_ROOT_USER: root
+      MYSQL_PASSWORD: 'Password@123'
+      MYSQL_ROOT_PASSWORD: 'Password@123'
+    ports:
+      - '3306:3306'
+    expose:
+      - '3306'
+    volumes:
+      - mysql-db:/var/lib/mysql
+
+  user-service:
+    build:
+      context: .
+      dockerfile: deps/Dockerfile
+      args:
+        JAR_FILE: userservice/target/userservice-0.0.1-SNAPSHOT.jar
+    image: user-service
+    container_name: user-service
+    ports:
+      - '9810:9810'
+    depends_on:
+      - kafka
+      - mysql
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: deps/Dockerfile
+      args:
+        JAR_FILE: auth/target/auth-0.0.1-SNAPSHOT.jar
+    image: auth-service
+    container_name: auth-service
+    ports:
+      - '9898:9898'
+    depends_on:
+      - kafka
+      - mysql
+
+  expense-service:
+    build:
+      context: .
+      dockerfile: deps/Dockerfile
+      args:
+        JAR_FILE: ledger/target/ledger-0.0.1-SNAPSHOT.jar
+    image: expense_service
+    container_name: expense-service
+    ports:
+      - '9820:9820'
+    environment:
+      KAFKA_HOST: kafka
+      KAFKA_PORT: 9092
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DB: expense_service
+    depends_on:
+      - kafka
+      - mysql
+
+  data-service:
+    build:
+      context: ./dataservice
+      dockerfile: Dockerfile
+    image: data-service
+    container_name: data-service
+    ports:
+      - '8010:8010'
+    environment:
+      KAFKA_HOST: kafka
+      KAFKA_PORT: 9092
+      KAFKA_TOPIC_NAME: expense_service
+      MISTRAL_API_KEY: NtjQ98r3vll0QRAkN2TQ2g0TPMBjT7b7
+      PORT: 8010
+    depends_on:
+      - kafka
+      - mysql
+      - expense-service
+      - user-service
+
+  frontend:
+    build:
+      context: ./expense-frontend
+      dockerfile: Dockerfile
+    image: expense-frontend
+    container_name: expense-frontend
+    ports:
+      - '5173:5173'
+    environment:
+      - VITE_APP_SERVER_AUTH_URL=http://localhost:9898
+      - VITE_APP_SERVER_EXPENSE_URL=http://localhost:9820
+      - VITE_APP_SERVER_USER_URL=http://localhost:9810
+    depends_on:
+      - kafka
+      - mysql
+      - expense-service
+      - user-service
+      - data-service
+      - auth-service
+
+volumes:
+  mysql-db:
+    driver: local
+
+
