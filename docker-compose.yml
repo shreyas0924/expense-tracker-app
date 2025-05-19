@@ -30,8 +30,8 @@ services:
     environment:
       MYSQL_USER: test
       MYSQL_ROOT_USER: root
-      MYSQL_PASSWORD: 'Password@123'
-      MYSQL_ROOT_PASSWORD: 'Password@123'
+      MYSQL_PASSWORD: 'root'
+      MYSQL_ROOT_PASSWORD: 'root'
     ports:
       - '3306:3306'
     expose:
@@ -101,7 +101,7 @@ services:
       KAFKA_HOST: kafka
       KAFKA_PORT: 9092
       KAFKA_TOPIC_NAME: expense_service
-      MISTRAL_API_KEY: NtjQ98r3vll0QRAkN2TQ2g0TPMBjT7b7
+      MISTRAL_API_KEY: api_key
       PORT: 8010
     depends_on:
       - kafka
